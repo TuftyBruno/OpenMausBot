@@ -414,7 +414,7 @@ const appConfigSchema = z.object({
   browserProfiles: browserProfilesSchema.optional(),
   instances: instanceConfigMapSchema.optional(),
   /** Loose on purpose: one bad server entry is skipped later, never fails the whole file. */
-  mcpServers: z.record(z.string(), z.unknown()).optional(),
+  mcpServers: z.record(z.string(), z.unknown()).optional(), /** Services each bot's committed memory notes are sent to, one way: `{ kind: "webhook" | "hindsight", url, token?, bots: { [botId]: bank or label } }`. */ memoryConnectors: z.array(z.unknown()).optional(),
 });
 const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
   browserProfiles: storedBrowserProfilesSchema.optional(),
@@ -426,7 +426,7 @@ const storedAppConfigSchema = appConfigSchema.extend(helperStoredShape).extend({
       .optional(),
   }).optional(),
 });
-const appConfigPatchSchema = appConfigSchema.omit({ instances: true, mcpServers: true, cliStartup: true, customDomain: true })
+const appConfigPatchSchema = appConfigSchema.omit({ instances: true, mcpServers: true, memoryConnectors: true, cliStartup: true, customDomain: true })
   .extend({ threads: threadsPatchSchema.optional(), newBots: newBotsPatchSchema.optional(), imageGen: imageGenPatchSchema.optional() }); export const CONFIG_PATCH_FIELDS = appConfigPatchSchema.shape;
 const jsonObjectSchema = z.record(z.string(), z.json());
 
@@ -446,7 +446,7 @@ export interface AppConfig extends HelperConfig {
     publicUrl?: string;
     phone?: "ios" | "android";
   };
-  mcpServers?: Record<string, unknown>;
+  mcpServers?: Record<string, unknown>; memoryConnectors?: unknown[];
   language?: string; computerName?: string;
   xai?: { key?: string; url?: string };
   mistral?: { key?: string };

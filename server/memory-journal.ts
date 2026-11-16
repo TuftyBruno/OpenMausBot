@@ -7,6 +7,7 @@ import { join } from "node:path";
 
 import { writeFileAtomic } from "./atomic.ts";
 import { DATA_DIR } from "./config.ts";
+import { sendMemoryChange } from "./memory-connector.ts";
 import {
   MEMORY_INDEX,
   MemoryStoreError,
@@ -316,6 +317,7 @@ export function recordMemoryChange(botId: string, change: MemoryChangeInput): Me
   if (change.threadId) entry.threadId = change.threadId;
   if (revertUnavailableReason) entry.revertUnavailableReason = revertUnavailableReason;
   enqueue(botId, entry);
+  try { void sendMemoryChange(entry); } catch (error) { console.error(`memory-journal: could not send ${botId}'s change:`, error instanceof Error ? error.message : error); }
   return entry;
 }
 
