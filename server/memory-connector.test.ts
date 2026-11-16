@@ -1,4 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createServer } from "node:http";
+import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -84,6 +86,14 @@ describe("memoryConnectorRequests", () => {
     expect(memoryConnectorRequests(entry({ diff: "--- a/MEMORY.md\n+++ b/MEMORY.md\n@@ -1 +0,0 @@\n- old fact\n" }), [hindsight])).toEqual([]);
     expect(memoryConnectorRequests(entry({ actor: "person" }), [hindsight])).toHaveLength(1);
   });
+
+  it("never sends a diff the journal cut short, where a split secret could escape redaction", () => {
+    const pem = `-----BEGIN PRIVATE KEY-----\n${"A".repeat(9_000)}\n-----END PRIVATE KEY-----\n`;
+    const recorded = recordMemoryChange("cut-bot", { path: "MEMORY.md", actor: "bot", via: "turn", before: "", after: pem });
+    expect(recorded!.diff).toContain("(diff cut here)");
+    expect(memoryConnectorRequests(recorded!, [{ ...hindsight, bots: new Map([["cut-bot", "bank"]]) }])).toEqual([]);
+    resetMemoryJournalState();
+  });
 });
 
 describe("sendMemoryChange", () => {
@@ -99,6 +109,29 @@ describe("sendMemoryChange", () => {
     expect(logged).toContain("could not reach hooks.example.test");
     expect(logged).not.toContain("secret-token");
     warn.mockRestore();
+  });
+});
+
+describe("sendMemoryChange redirects", () => {
+  it("does not follow a redirect to an address that is not configured", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const paths: string[] = [];
+    const server = createServer((req, res) => {
+      paths.push(req.url ?? "");
+      req.resume();
+      if (req.url === "/elsewhere") res.end("ok");
+      else res.writeHead(307, { location: "/elsewhere" }).end();
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const { port } = server.address() as AddressInfo;
+    try {
+      await sendMemoryChange(entry(), [{ ...webhook, url: `http://127.0.0.1:${port}/in` }]);
+      expect(paths).toEqual(["/in"]);
+      expect(warn.mock.calls.flat().join("\n")).toContain("answered HTTP 307");
+    } finally {
+      server.close();
+      warn.mockRestore();
+    }
   });
 });
 

@@ -23,6 +23,7 @@ const MAX_CONNECTORS = 8;
 const MAX_CONTENT = 16_000;
 const TIMEOUT_MS = 10_000;
 const SENT_BY = new Set<MemoryJournalEntry["actor"]>(["bot", "person"]);
+const CUT_DIFF = "\n… (diff cut here)";
 
 /** One bad entry is skipped with a warning; it never fails config.json. */
 export function parseMemoryConnectors(raw: unknown, warn: (line: string) => void = console.warn): MemoryConnector[] {
@@ -64,7 +65,8 @@ function addedText(diff: string): string {
 }
 
 export function memoryConnectorRequests(entry: MemoryJournalEntry, connectors: readonly MemoryConnector[]): MemoryConnectorRequest[] {
-  if (!SENT_BY.has(entry.actor) || entry.kind === "deleted") return [];
+  // Security: the journal redacts after cutting a long diff, so a secret split by the cut can survive; a cut diff is never sent.
+  if (!SENT_BY.has(entry.actor) || entry.kind === "deleted" || entry.diff.endsWith(CUT_DIFF)) return [];
   const content = addedText(entry.diff);
   if (!content) return [];
   const at = new Date(entry.at).toISOString();
@@ -106,7 +108,9 @@ export function sendMemoryChange(
   return Promise.allSettled(requests.map(async (request) => {
     const host = new URL(request.url).host;
     try {
-      const res = await send(request.url, { method: "POST", headers: request.headers, body: request.body, signal: AbortSignal.timeout(TIMEOUT_MS) });
+      // Security: a redirect is never followed, so a note only reaches the address in config.json.
+      const res = await send(request.url, { method: "POST", headers: request.headers, body: request.body, redirect: "manual", signal: AbortSignal.timeout(TIMEOUT_MS) });
+      await res.body?.cancel().catch(() => {});
       if (!res.ok) console.warn(`memory-connector: ${host} answered HTTP ${res.status} for ${entry.botId}`);
     } catch (error) {
       console.warn(`memory-connector: could not reach ${host} for ${entry.botId}: ${error instanceof Error ? error.name : "error"}`);
