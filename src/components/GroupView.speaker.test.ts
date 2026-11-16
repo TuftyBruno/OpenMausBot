@@ -16,6 +16,8 @@ vi.mock("@/lib/analytics", () => ({ track: vi.fn() }));
 vi.mock("@/lib/cloud-guest", async (importOriginal) => ({ ...await importOriginal<typeof import("@/lib/cloud-guest")>(), useReactor: () => viewer.reactor }));
 
 const { Transcript } = await import("./GroupView");
+const { personBubbleColor } = await import("@/lib/own-profile");
+const { userBubbleTone } = await import("@/lib/user-bubble-tone");
 
 const ada = { id: "ada", name: "Ada", color: "blue" } as Bot;
 const kai = { id: "kai", name: "Kai", color: "orange" } as Bot;
@@ -103,9 +105,14 @@ describe("room speaker names", () => {
     expect(shared).not.toContain(">Ada<");
     const nameClasses = shared.match(/class="([^"]*)">Olive</)![1].split(" ");
     expect(nameClasses).toEqual(expect.arrayContaining(["text-[13px]", "font-semibold", "text-ink-secondary"]));
+    const bubble = (text: string) => shared.match(new RegExp(`<div data-chat-bubble[^>]*>(?:(?!data-chat-bubble).)*?>${text}<`, "s"))![0];
+    expect(bubble("can you check the draft")).toContain("user-bubble-colored");
+    expect(bubble("can you check the draft")).toContain(`--color-bubble-user:${userBubbleTone(personBubbleColor("p_olive")).background}`);
+    expect(bubble("on my side too")).not.toContain("user-bubble-colored");
     viewer.reactor = "user";
     const solo = markup(messages);
     expect(solo).not.toContain(">Olive<");
     expect(solo).not.toContain(">Ada<");
+    expect(solo).not.toContain("user-bubble-colored");
   });
 });

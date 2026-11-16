@@ -3,7 +3,7 @@ import { formattedReplyWidth, isFormattedReply, splitReplyBlocks } from "@/lib/f
 import { activeLocale, intlLocale, t } from "@/lib/i18n";
 import { useShowThreads } from "@/lib/thread-preferences";
 import { useReactor } from "@/lib/cloud-guest";
-import { otherSpeaker } from "@/lib/own-profile";
+import { otherSpeaker, usePersonBubbleStyle } from "@/lib/own-profile";
 import { Check, ChevronDown, FolderOpen, Loader2, Pin, Square, X } from "lucide-react";
 import {
   api,
@@ -171,7 +171,7 @@ function RoomTextMessage({
   const focusedSearch = focus?.messageId === m.id && Boolean(focus.matchText) && focus.threadId === group.threadId;
   const collapsible = user && !expanded && (display.length > USER_COLLAPSE_CHARS || display.split("\n").length > USER_COLLAPSE_LINES);
   useEffect(() => { if (focusedSearch && collapsible) setExpanded(true); }, [focusedSearch, collapsible, focus?.nonce]);
-  const simple = !useAdvancedMode();
+  const simple = !useAdvancedMode(); const speakerStyle = usePersonBubbleStyle(speaker ? m.sender?.id : undefined, simple);
   const speakerBot = members.find((member) => member.id === m.from?.botId);
   const botText = rawText; const teammates = useTeammates(); const peers = useMemo(() => [...members, ...teammates.peers], [members, teammates]);
   const pin = roomPin(group, m, dispatch);
@@ -222,10 +222,10 @@ function RoomTextMessage({
               : !simple && !user && isFormattedReply(m.text ?? "")
                 ? cn(formattedReplyWidth(m.text ?? ""), "px-1 text-ink")
                 : user
-                  ? cn("chat-text whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5")
+                  ? cn("chat-text whitespace-pre-wrap [overflow-wrap:anywhere] text-ink", simple ? SIMPLE_USER_BUBBLE : "bg-bubble-user px-4 py-2.5", speakerStyle && "user-bubble-colored", simple && speakerStyle && "antialiased")
                   : simple ? SIMPLE_BOT_BUBBLE : "bg-card px-4 py-2.5 text-ink",
           )}
-          title={new Date(m.at).toLocaleString(intlLocale())}
+          style={user ? speakerStyle : undefined} title={new Date(m.at).toLocaleString(intlLocale())}
         >
           {m.replyToId && (() => {
             const target = transcript.find((candidate) => candidate.id === m.replyToId);

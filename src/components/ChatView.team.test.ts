@@ -16,6 +16,8 @@ vi.mock("./ModelPicker", () => ({ ModelPicker: () => null }));
 
 const { ChatView } = await import("./ChatView");
 const { setColorUserBubbles } = await import("@/lib/user-bubble-preference");
+const { personBubbleColor } = await import("@/lib/own-profile");
+const { userBubbleTone } = await import("@/lib/user-bubble-tone");
 const { BotEditorStore, initialState } = await import("@/state/store");
 const { t } = await import("@/lib/i18n");
 const { setAdvancedMode } = await import("@/lib/interface-mode");
@@ -50,15 +52,29 @@ const draw = (bot: Bot, config: Partial<NonNullable<AppState["config"]>> = { tea
 };
 const row = (text: string) => [...container.querySelectorAll<HTMLElement>("[data-message-row]")].find((element) => element.textContent?.includes(text))!;
 
-it("shows a teammate's line in a shared chat as theirs, with their name, and only the viewer's own in their bubble", () => {
+it("shows a teammate's line in a shared chat as theirs, with their name and their own color, never the bot's", () => {
   setColorUserBubbles(true);
   draw(luna([line("o1", { name: "Olive", id: "p_olive" }, "plant is memory-Fernando"), line("a1", { name: "Ada", id: "p_ada" }, "noted")]));
+  const tint = (bubble: HTMLElement) => bubble.style.getPropertyValue("--color-bubble-user");
   const olive = row("plant is memory-Fernando");
   expect(olive.textContent).toContain("Olive");
-  expect(olive.querySelector("[data-chat-bubble]")!.className).not.toContain("user-bubble-colored");
+  const theirs = olive.querySelector<HTMLElement>("[data-chat-bubble]")!;
+  expect(theirs.className).toContain("user-bubble-colored");
+  expect(personBubbleColor("p_olive", "green")).not.toBe("green");
+  expect(tint(theirs)).toBe(userBubbleTone(personBubbleColor("p_olive", "green")).background);
   const own = row("noted");
   expect(own.textContent).not.toContain("Ada");
-  expect(own.querySelector("[data-chat-bubble]")!.className).toContain("user-bubble-colored");
+  const mine = own.querySelector<HTMLElement>("[data-chat-bubble]")!;
+  expect(mine.className).toContain("user-bubble-colored");
+  expect(tint(mine)).toBe(userBubbleTone("green").background);
+});
+
+it("leaves the viewer's own bubble plain when they turned coloring off, and still colors a teammate's", () => {
+  setColorUserBubbles(false);
+  draw(luna([line("o1", { name: "Olive", id: "p_olive" }, "plant is memory-Fernando"), line("a1", { name: "Ada", id: "p_ada" }, "noted")]));
+  expect(row("plant is memory-Fernando").querySelector("[data-chat-bubble]")!.className).toContain("user-bubble-colored");
+  expect(row("noted").querySelector("[data-chat-bubble]")!.className).not.toContain("user-bubble-colored");
+  setColorUserBubbles(true);
 });
 
 it("names a teammate's line on a shared server without a team, and not the viewer's own", () => {
